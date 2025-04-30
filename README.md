@@ -50,7 +50,7 @@ Deploying CredoChain contract...
  CredoChain deployed to: Your_Contract_Address
 ```
 
-Please copy the value of "Your_Contract_Address" to line 6 of interact.js.
+Please copy the value of "Your_Contract_Address" to line 9 of interact.js.
 
 14. Run the tests: Execute `npx hardhat test`. This command runs all tests in the test folder, and you should see that all tests pass.
 
