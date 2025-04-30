@@ -21,6 +21,7 @@ CredoChain is a decentralized credential verification system. Approved organizat
 
 7. Create the required folders and files: Execute `mkdir contracts scripts test` and `touch contracts/CredoChain.sol scripts/deploy.js scripts/interact.js test/CredoChainTest.js` to create the neccessary folders and files. The workspace structure should be as follows:
 
+```
 CredoChain/
 ├── contracts/
 │   └── CredoChain.sol
@@ -32,7 +33,8 @@ CredoChain/
 ├── hardhat.config.js
 ├── package-lock.json
 ├── package.json
-└── node_modules/ 
+└── node_modules/
+```
 
 8. Populate the project files: Open the files using VS Code or any editor and copy the provided contents to their respective files.
 
