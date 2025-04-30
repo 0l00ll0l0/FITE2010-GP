@@ -14,8 +14,9 @@ contract CredoChain {
         uint256 id;
         address issuer;
         address subject;
-        string ipfsHash; // Off-chain detailed data about the credential
+        string ipfsHash;
         uint256 issuedAt;
+        uint256 expiresAt; // expiration timestamp; use 0 for non-expiring credentials
         bool revoked;
     }
 
@@ -23,6 +24,8 @@ contract CredoChain {
     mapping(uint256 => Credential) public credentials;
     // Mapping from subject address to list of credential IDs
     mapping(address => uint256[]) public subjectCredentials;
+    // Mapping from issuer address to list of credential IDs
+    mapping(address => uint256[]) public issuerCredentials;
     // Mapping to track approved issuers
     mapping(address => bool) public approvedIssuers;
 
@@ -74,7 +77,21 @@ contract CredoChain {
     }
 
     /**
-     * @dev Issue a new credential to a subject. Only approved issuers can call this function.
+     * @dev Add multiple approved issuers. Only the contract owner can execute this.
+     * @param _issuers The addresses of the organizations to be approved.
+     */
+    function addIssuers(address[] calldata _issuers) external onlyOwner {
+        for (uint256 i = 0; i < _issuers.length; i++) {
+            address issuer = _issuers[i];
+            require(issuer != address(0), "Invalid issuer address");
+            approvedIssuers[issuer] = true;
+            emit IssuerAdded(issuer);
+        }
+    }
+
+    /**
+     * @dev Issue a new non-expiring credential to a subject.
+     * Only approved issuers can call this function.
      * @param _subject The address of the credential holder.
      * @param _ipfsHash The IPFS hash pointing to detailed credential data.
      */
@@ -89,10 +106,42 @@ contract CredoChain {
             subject: _subject,
             ipfsHash: _ipfsHash,
             issuedAt: block.timestamp,
+            expiresAt: 0, // 0 indicates no expiry
             revoked: false
         });
 
         subjectCredentials[_subject].push(newCredentialId);
+        issuerCredentials[msg.sender].push(newCredentialId);
+
+        emit CredentialIssued(newCredentialId, msg.sender, _subject, _ipfsHash, block.timestamp);
+    }
+
+    /**
+     * @dev Issue a new credential with an expiry time to a subject.
+     * Only approved issuers can call this function.
+     * @param _subject The address of the credential holder.
+     * @param _ipfsHash The IPFS hash pointing to detailed credential data.
+     * @param _expiresAt The expiration timestamp for the credential; must be in the future.
+     */
+    function issueCredentialWithExpiry(address _subject, string memory _ipfsHash, uint256 _expiresAt) external onlyApprovedIssuer {
+        require(_subject != address(0), "Invalid subject address");
+        require(_expiresAt > block.timestamp, "Expiration must be in the future");
+
+        credentialIdCounter++;
+        uint256 newCredentialId = credentialIdCounter;
+
+        credentials[newCredentialId] = Credential({
+            id: newCredentialId,
+            issuer: msg.sender,
+            subject: _subject,
+            ipfsHash: _ipfsHash,
+            issuedAt: block.timestamp,
+            expiresAt: _expiresAt,
+            revoked: false
+        });
+
+        subjectCredentials[_subject].push(newCredentialId);
+        issuerCredentials[msg.sender].push(newCredentialId);
 
         emit CredentialIssued(newCredentialId, msg.sender, _subject, _ipfsHash, block.timestamp);
     }
@@ -121,6 +170,15 @@ contract CredoChain {
     }
 
     /**
+     * @dev Retrieve all credential IDs associated with an issuer.
+     * @param _issuer The address of the issuer.
+     * @return An array of credential IDs.
+     */
+    function getCredentialsByIssuer(address _issuer) external view returns (uint256[] memory) {
+        return issuerCredentials[_issuer];
+    }
+
+    /**
      * @dev Verify the details of a credential.
      * @param _credentialId The ID of the credential to verify.
      * @return The Credential struct containing all details.
@@ -129,5 +187,42 @@ contract CredoChain {
         Credential memory credential = credentials[_credentialId];
         require(credential.id != 0, "Credential does not exist");
         return credential;
+    }
+
+    /**
+     * @dev Get the total number of credentials issued.
+     * @return The total count of credentials.
+     */
+    function getTotalCredentials() external view returns (uint256) {
+        return credentialIdCounter;
+    }
+
+    /**
+     * @dev Transfer contract ownership to a new owner.
+     * @param _newOwner The address of the new owner.
+     */
+    function transferOwnership(address _newOwner) external onlyOwner {
+        require(_newOwner != address(0), "Invalid new owner");
+        owner = _newOwner;
+    }
+
+    /**
+     * @dev Renounce contract ownership.
+     */
+    function renounceOwnership() external onlyOwner {
+        owner = address(0);
+    }
+
+    /**
+     * @dev Check if a credential is valid (i.e. not revoked and not expired).
+     * Non-expiring credentials have expiresAt set to 0.
+     * @param _credentialId The ID of the credential.
+     * @return True if the credential is valid, false otherwise.
+     */
+    function isCredentialValid(uint256 _credentialId) external view returns (bool) {
+        Credential memory credential = credentials[_credentialId];
+        require(credential.id != 0, "Credential does not exist");
+        bool notExpired = (credential.expiresAt == 0 || block.timestamp <= credential.expiresAt);
+        return !credential.revoked && notExpired;
     }
 }
